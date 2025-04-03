@@ -6,7 +6,8 @@ export default function HeroBanner() {
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row items-center">
           <div className="md:w-1/2 mb-6 md:mb-0 pr-0 md:pr-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-white font-heading">Fresh Harvest Direct to Your Door</h1>
+            <div className="text-3xl md:text-5xl font-bold text-white font-heading mb-2">AgriConnect</div>
+            <h1 className="text-2xl md:text-3xl font-bold text-white font-heading">Fresh Harvest Direct to Your Door</h1>
             <p className="mt-4 text-xl text-white opacity-90">Connect directly with farmers and get the freshest produce with secure blockchain transactions.</p>
             <div className="mt-6">
               <Button 
