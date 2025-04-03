@@ -42,9 +42,10 @@ app.use((req, res, next) => {
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-
+    
+    console.error("Server Error:", { status, message, stack: err.stack });
+    
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
@@ -60,11 +61,13 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = 5000;
+  console.log("Starting AgriConnect server...");
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
+    console.log(`=== AgriConnect server is running on http://0.0.0.0:${port} ===`);
     log(`serving on port ${port}`);
   });
 })();

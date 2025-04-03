@@ -8,12 +8,20 @@ import { insertCartItemSchema, insertProductSchema, insertCategorySchema, insert
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add healthcheck route for Replit
   app.get("/healthcheck", (req, res) => {
+    console.log("Healthcheck endpoint accessed");
     res.status(200).send("OK");
   });
   
-  // Add explicit root route for Replit detection
+  // Add root route for Replit detection
+  app.get("/", (req, res) => {
+    console.log("Root endpoint accessed");
+    res.status(200).send("AgriConnect server is running. Access the application through the web view.");
+  });
+  
+  // Add explicit API root route
   app.get("/api", (req, res) => {
-    res.status(200).json({ message: "AgriMarket API is running" });
+    console.log("API root endpoint accessed");
+    res.status(200).json({ message: "AgriConnect API is running", status: "online" });
   });
   
   // Setup authentication routes

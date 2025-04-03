@@ -30,7 +30,7 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export async function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "agrimarket-secret-key",
+    secret: process.env.SESSION_SECRET || "agriconnect-secret-key",
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,

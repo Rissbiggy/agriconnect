@@ -80,7 +80,7 @@ export default function AuthPage() {
     <div className="flex min-h-screen">
       <div className="login-container hidden md:flex md:w-1/2 justify-center items-center p-10 bg-gradient-to-r from-primary to-primary-dark bg-cover bg-center">
         <div className="text-white max-w-md">
-          <h1 className="text-4xl font-bold font-heading mb-6">AgriMarket</h1>
+          <h1 className="text-4xl font-bold font-heading mb-6">AgriConnect</h1>
           <p className="text-xl mb-4">The secure marketplace connecting farmers, buyers, experts, and more.</p>
           <ul className="space-y-3">
             <li className="flex items-center">
