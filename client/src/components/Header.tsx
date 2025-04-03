@@ -122,6 +122,14 @@ export default function Header({ onCartClick }: HeaderProps) {
                   <User className="mr-2 h-4 w-4" />
                   <span>Your Profile</span>
                 </DropdownMenuItem>
+                {user?.role === 'admin' && (
+                  <DropdownMenuItem className="cursor-pointer" asChild>
+                    <Link to="/admin">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Admin Dashboard</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
                   <span>Settings</span>
@@ -200,6 +208,14 @@ export default function Header({ onCartClick }: HeaderProps) {
               <User className="mr-2 h-4 w-4" />
               <span>Your Profile</span>
             </Button>
+            {user?.role === 'admin' && (
+              <Button variant="ghost" className="w-full justify-start" asChild>
+                <Link to="/admin">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Admin Dashboard</span>
+                </Link>
+              </Button>
+            )}
             <Button variant="ghost" className="w-full justify-start">
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>

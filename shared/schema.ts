@@ -10,6 +10,7 @@ export enum UserRole {
   EXPERT = "expert",
   SUPPLIER = "supplier",
   GOVERNMENT = "government",
+  ADMIN = "admin",
 }
 
 // Users table

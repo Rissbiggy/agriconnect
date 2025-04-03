@@ -20,12 +20,15 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getAllUsers(): Promise<User[]>; // Admin function
+  deleteUser(id: number): Promise<boolean>; // Admin function
   
   // Product methods
   getProduct(id: number): Promise<Product | undefined>;
   getAllProducts(filters?: { categoryId?: number; search?: string }): Promise<Product[]>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, product: Partial<Product>): Promise<Product | undefined>;
+  deleteProduct(id: number): Promise<boolean>; // Admin function
   
   // Category methods
   getCategory(id: number): Promise<Category | undefined>;
@@ -43,6 +46,8 @@ export interface IStorage {
   createOrder(orderData: { userId: number; shippingAddress: string; paymentMethod: string }): Promise<Order>;
   getOrder(id: number, userId: number): Promise<(Order & { items: (OrderItem & { product: Product })[] }) | undefined>;
   getUserOrders(userId: number): Promise<Order[]>;
+  getAllOrders(): Promise<Order[]>; // Admin function
+  updateOrderStatus(id: number, status: string): Promise<Order | undefined>; // Admin function
   
   // Article methods
   getArticle(id: number): Promise<(Article & { expert: User }) | undefined>;
@@ -441,6 +446,15 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return user;
   }
+  
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+  
+  async deleteUser(id: number): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
 
   // Product methods
   async getProduct(id: number): Promise<Product | undefined> {
@@ -488,6 +502,11 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return product || undefined;
+  }
+  
+  async deleteProduct(id: number): Promise<boolean> {
+    const result = await db.delete(products).where(eq(products.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 
   // Category methods
@@ -708,6 +727,23 @@ export class DatabaseStorage implements IStorage {
       .from(orders)
       .where(eq(orders.userId, userId))
       .orderBy(desc(orders.createdAt));
+  }
+  
+  async getAllOrders(): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .orderBy(desc(orders.createdAt));
+  }
+  
+  async updateOrderStatus(id: number, status: string): Promise<Order | undefined> {
+    const [order] = await db
+      .update(orders)
+      .set({ status })
+      .where(eq(orders.id, id))
+      .returning();
+    
+    return order || undefined;
   }
 
   // Article methods

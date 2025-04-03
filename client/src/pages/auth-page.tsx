@@ -346,6 +346,7 @@ export default function AuthPage() {
                             <option value={UserRole.SUPPLIER}>Supplier</option>
                             <option value={UserRole.EXPERT}>Agricultural Expert</option>
                             <option value={UserRole.GOVERNMENT}>Government Agency</option>
+                            <option value={UserRole.ADMIN}>Administrator</option>
                           </select>
                         </FormControl>
                         <FormMessage />
