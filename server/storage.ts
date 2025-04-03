@@ -2,12 +2,17 @@ import {
   User, InsertUser, Product, InsertProduct, 
   Category, InsertCategory, CartItem, InsertCartItem,
   Order, InsertOrder, OrderItem, InsertOrderItem,
-  Article, InsertArticle, Review, InsertReview
+  Article, InsertArticle, Review, InsertReview,
+  users, products, categories, cartItems, orders, orderItems, articles, reviews
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
+import { db, pool } from "./db";
+import { eq, and, like, desc, sql } from "drizzle-orm";
 
 const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   // User methods
@@ -49,7 +54,7 @@ export interface IStorage {
   getProductReviews(productId: number): Promise<(Review & { user: User })[]>;
   
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: any; // Using any type for session store as Express.SessionStore type issues
 }
 
 export class MemStorage implements IStorage {
@@ -71,7 +76,7 @@ export class MemStorage implements IStorage {
   private articleIdCounter: number;
   private reviewIdCounter: number;
   
-  sessionStore: session.SessionStore;
+  sessionStore: any; // Using any for session store type
 
   constructor() {
     this.users = new Map();
@@ -397,4 +402,413 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  sessionStore: any; // Using any for session store type
+
+  constructor() {
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
+    });
+  }
+
+  // User methods
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email));
+    return user || undefined;
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .returning();
+    return user;
+  }
+
+  // Product methods
+  async getProduct(id: number): Promise<Product | undefined> {
+    const [product] = await db
+      .select()
+      .from(products)
+      .where(eq(products.id, id));
+    return product || undefined;
+  }
+
+  async getAllProducts(filters?: { categoryId?: number; search?: string }): Promise<Product[]> {
+    let query = db.select().from(products);
+    
+    if (filters?.categoryId) {
+      query = query.where(eq(products.categoryId, filters.categoryId));
+    }
+    
+    if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
+      query = query.where(
+        sql`${products.name} ILIKE ${searchTerm} OR ${products.description} ILIKE ${searchTerm}`
+      );
+    }
+    
+    return await query.orderBy(desc(products.createdAt));
+  }
+
+  async createProduct(productData: InsertProduct): Promise<Product> {
+    const [product] = await db
+      .insert(products)
+      .values(productData)
+      .returning();
+    
+    // Update category product count
+    await this.updateCategoryProductCount(productData.categoryId);
+    
+    return product;
+  }
+
+  async updateProduct(id: number, productData: Partial<Product>): Promise<Product | undefined> {
+    const [product] = await db
+      .update(products)
+      .set(productData)
+      .where(eq(products.id, id))
+      .returning();
+    
+    return product || undefined;
+  }
+
+  // Category methods
+  async getCategory(id: number): Promise<Category | undefined> {
+    const [category] = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.id, id));
+    return category || undefined;
+  }
+
+  async getCategoryByName(name: string): Promise<Category | undefined> {
+    const [category] = await db
+      .select()
+      .from(categories)
+      .where(eq(categories.name, name));
+    return category || undefined;
+  }
+
+  async getAllCategories(): Promise<Category[]> {
+    return await db.select().from(categories);
+  }
+
+  async createCategory(categoryData: InsertCategory): Promise<Category> {
+    const [category] = await db
+      .insert(categories)
+      .values(categoryData)
+      .returning();
+    return category;
+  }
+
+  private async updateCategoryProductCount(categoryId: number): Promise<void> {
+    // Count products in this category
+    const [result] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(products)
+      .where(eq(products.categoryId, categoryId));
+    
+    const count = result?.count || 0;
+    
+    // Update category
+    await db
+      .update(categories)
+      .set({ productCount: count })
+      .where(eq(categories.id, categoryId));
+  }
+
+  // Cart methods
+  async getCartItems(userId: number): Promise<(CartItem & { product: Product })[]> {
+    const items = await db
+      .select()
+      .from(cartItems)
+      .where(eq(cartItems.userId, userId));
+    
+    return Promise.all(
+      items.map(async (item) => {
+        const product = await this.getProduct(item.productId);
+        return {
+          ...item,
+          product: product as Product,
+        };
+      })
+    );
+  }
+
+  async addToCart(cartItemData: InsertCartItem): Promise<CartItem> {
+    // Check if product exists
+    const product = await this.getProduct(cartItemData.productId);
+    if (!product) {
+      throw new Error("Product not found");
+    }
+    
+    // Check if item is already in cart
+    const [existingItem] = await db
+      .select()
+      .from(cartItems)
+      .where(
+        and(
+          eq(cartItems.userId, cartItemData.userId),
+          eq(cartItems.productId, cartItemData.productId)
+        )
+      );
+    
+    if (existingItem) {
+      // Update quantity instead of creating new item
+      const newQuantity = existingItem.quantity + (cartItemData.quantity || 1);
+      return (await this.updateCartItemQuantity(
+        existingItem.id,
+        cartItemData.userId,
+        newQuantity
+      )) as CartItem;
+    }
+    
+    // Create new cart item
+    const [cartItem] = await db
+      .insert(cartItems)
+      .values(cartItemData)
+      .returning();
+    
+    return cartItem;
+  }
+
+  async updateCartItemQuantity(id: number, userId: number, quantity: number): Promise<CartItem | undefined> {
+    const [updatedItem] = await db
+      .update(cartItems)
+      .set({ quantity })
+      .where(
+        and(
+          eq(cartItems.id, id),
+          eq(cartItems.userId, userId)
+        )
+      )
+      .returning();
+    
+    return updatedItem || undefined;
+  }
+
+  async removeFromCart(id: number, userId: number): Promise<boolean> {
+    const result = await db
+      .delete(cartItems)
+      .where(
+        and(
+          eq(cartItems.id, id),
+          eq(cartItems.userId, userId)
+        )
+      );
+    
+    return result.rowCount > 0;
+  }
+
+  // Order methods
+  async createOrder(orderData: { userId: number; shippingAddress: string; paymentMethod: string }): Promise<Order> {
+    // Get cart items
+    const cartItemsList = await this.getCartItems(orderData.userId);
+    
+    if (cartItemsList.length === 0) {
+      throw new Error("Cart is empty");
+    }
+    
+    // Calculate total amount
+    const totalAmount = cartItemsList.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0
+    );
+    
+    // Start a transaction
+    const order = await db.transaction(async (tx) => {
+      // Create order
+      const [newOrder] = await tx
+        .insert(orders)
+        .values({
+          userId: orderData.userId,
+          status: "pending",
+          totalAmount,
+          shippingAddress: orderData.shippingAddress,
+          paymentMethod: orderData.paymentMethod,
+        })
+        .returning();
+      
+      // Create order items
+      for (const cartItem of cartItemsList) {
+        await tx.insert(orderItems).values({
+          orderId: newOrder.id,
+          productId: cartItem.productId,
+          quantity: cartItem.quantity,
+          unitPrice: cartItem.product.price,
+        });
+        
+        // Remove from cart
+        await tx
+          .delete(cartItems)
+          .where(eq(cartItems.id, cartItem.id));
+      }
+      
+      return newOrder;
+    });
+    
+    return order;
+  }
+
+  async getOrder(id: number, userId: number): Promise<(Order & { items: (OrderItem & { product: Product })[] }) | undefined> {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.id, id),
+          eq(orders.userId, userId)
+        )
+      );
+    
+    if (!order) return undefined;
+    
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, id));
+    
+    const itemsWithProducts = await Promise.all(
+      items.map(async (item) => {
+        const product = await this.getProduct(item.productId);
+        return {
+          ...item,
+          product: product as Product,
+        };
+      })
+    );
+    
+    return {
+      ...order,
+      items: itemsWithProducts,
+    };
+  }
+
+  async getUserOrders(userId: number): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .where(eq(orders.userId, userId))
+      .orderBy(desc(orders.createdAt));
+  }
+
+  // Article methods
+  async getArticle(id: number): Promise<(Article & { expert: User }) | undefined> {
+    const [article] = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, id));
+    
+    if (!article) return undefined;
+    
+    const expert = await this.getUser(article.expertId);
+    
+    return {
+      ...article,
+      expert: expert as User,
+    };
+  }
+
+  async getAllArticles(): Promise<(Article & { expert: User })[]> {
+    const articlesList = await db
+      .select()
+      .from(articles)
+      .orderBy(desc(articles.createdAt));
+    
+    return Promise.all(
+      articlesList.map(async (article) => {
+        const expert = await this.getUser(article.expertId);
+        return {
+          ...article,
+          expert: expert as User,
+        };
+      })
+    );
+  }
+
+  async createArticle(articleData: InsertArticle): Promise<Article> {
+    const [article] = await db
+      .insert(articles)
+      .values(articleData)
+      .returning();
+    
+    return article;
+  }
+
+  // Review methods
+  async createReview(reviewData: InsertReview): Promise<Review> {
+    const [review] = await db
+      .insert(reviews)
+      .values(reviewData)
+      .returning();
+    
+    // Update product rating
+    await this.updateProductRating(reviewData.productId);
+    
+    return review;
+  }
+
+  async getProductReviews(productId: number): Promise<(Review & { user: User })[]> {
+    const reviewsList = await db
+      .select()
+      .from(reviews)
+      .where(eq(reviews.productId, productId))
+      .orderBy(desc(reviews.createdAt));
+    
+    return Promise.all(
+      reviewsList.map(async (review) => {
+        const user = await this.getUser(review.userId);
+        return {
+          ...review,
+          user: user as User,
+        };
+      })
+    );
+  }
+
+  private async updateProductRating(productId: number): Promise<void> {
+    // Calculate average rating
+    const [result] = await db
+      .select({
+        avgRating: sql<number>`AVG(${reviews.rating})`,
+        count: sql<number>`COUNT(*)`
+      })
+      .from(reviews)
+      .where(eq(reviews.productId, productId));
+    
+    if (result) {
+      const avgRating = parseFloat(result.avgRating.toFixed(1));
+      const count = result.count;
+      
+      // Update product rating and count
+      await db
+        .update(products)
+        .set({
+          rating: avgRating,
+          reviewCount: count
+        })
+        .where(eq(products.id, productId));
+    }
+  }
+}
+
+// Use DatabaseStorage instead of MemStorage
+export const storage = new DatabaseStorage();

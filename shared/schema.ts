@@ -1,6 +1,7 @@
-import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
 // User roles
 export enum UserRole {
@@ -143,3 +144,80 @@ export const loginSchema = z.object({
 });
 
 export type LoginData = z.infer<typeof loginSchema>;
+
+// Relations
+export const usersRelations = relations(users, ({ many }) => ({
+  products: many(products, { relationName: "user_products" }),
+  orders: many(orders),
+  cartItems: many(cartItems),
+  reviews: many(reviews),
+  articles: many(articles, { relationName: "expert_articles" }),
+}));
+
+export const productsRelations = relations(products, ({ one, many }) => ({
+  seller: one(users, {
+    fields: [products.sellerId],
+    references: [users.id],
+    relationName: "user_products"
+  }),
+  category: one(categories, {
+    fields: [products.categoryId],
+    references: [categories.id]
+  }),
+  cartItems: many(cartItems),
+  orderItems: many(orderItems),
+  reviews: many(reviews)
+}));
+
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  products: many(products)
+}));
+
+export const cartItemsRelations = relations(cartItems, ({ one }) => ({
+  user: one(users, {
+    fields: [cartItems.userId],
+    references: [users.id]
+  }),
+  product: one(products, {
+    fields: [cartItems.productId],
+    references: [products.id]
+  })
+}));
+
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  user: one(users, {
+    fields: [orders.userId],
+    references: [users.id]
+  }),
+  items: many(orderItems)
+}));
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderItems.orderId],
+    references: [orders.id]
+  }),
+  product: one(products, {
+    fields: [orderItems.productId],
+    references: [products.id]
+  })
+}));
+
+export const articlesRelations = relations(articles, ({ one }) => ({
+  expert: one(users, {
+    fields: [articles.expertId],
+    references: [users.id],
+    relationName: "expert_articles"
+  })
+}));
+
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+  user: one(users, {
+    fields: [reviews.userId],
+    references: [users.id]
+  }),
+  product: one(products, {
+    fields: [reviews.productId],
+    references: [products.id]
+  })
+}));
