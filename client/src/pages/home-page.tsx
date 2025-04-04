@@ -115,11 +115,6 @@ export default function HomePage() {
 
           {/* Blockchain Security */}
           <BlockchainBanner />
-          
-          {/* Blockchain Transactions */}
-          <section className="mb-8 bg-gray-50 p-6 rounded-lg">
-            <BlockchainTransactionsList />
-          </section>
 
           {/* Government Partnerships */}
           <PartnershipSection />

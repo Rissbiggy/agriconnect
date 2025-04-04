@@ -1,4 +1,4 @@
-import { Home, Grid, ShoppingCart, User } from "lucide-react";
+import { Home, Grid, ShoppingCart, User, Database } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { CartItem } from "@shared/schema";
@@ -38,6 +38,12 @@ export default function BottomNavigation() {
               )}
             </div>
             <span className="text-xs block">Cart</span>
+          </a>
+        </Link>
+        <Link href="/blockchain">
+          <a className={`flex-1 pt-2 pb-2 text-center ${location === '/blockchain' ? 'text-primary border-t-2 border-primary' : 'text-gray-500'}`}>
+            <Database className="h-6 w-6 mx-auto" />
+            <span className="text-xs block">Blockchain</span>
           </a>
         </Link>
         <Link href="/profile">
