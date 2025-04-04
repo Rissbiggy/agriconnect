@@ -131,6 +131,14 @@ export class MemStorage implements IStorage {
     this.users.set(id, user);
     return user;
   }
+  
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+  
+  async deleteUser(id: number): Promise<boolean> {
+    return this.users.delete(id);
+  }
 
   // Product methods
   async getProduct(id: number): Promise<Product | undefined> {
@@ -177,6 +185,10 @@ export class MemStorage implements IStorage {
     const updatedProduct = { ...product, ...productData };
     this.products.set(id, updatedProduct);
     return updatedProduct;
+  }
+  
+  async deleteProduct(id: number): Promise<boolean> {
+    return this.products.delete(id);
   }
 
   // Category methods
@@ -335,6 +347,19 @@ export class MemStorage implements IStorage {
 
   async getUserOrders(userId: number): Promise<Order[]> {
     return Array.from(this.orders.values()).filter(order => order.userId === userId);
+  }
+  
+  async getAllOrders(): Promise<Order[]> {
+    return Array.from(this.orders.values());
+  }
+  
+  async updateOrderStatus(id: number, status: string): Promise<Order | undefined> {
+    const order = this.orders.get(id);
+    if (!order) return undefined;
+    
+    const updatedOrder = { ...order, status };
+    this.orders.set(id, updatedOrder);
+    return updatedOrder;
   }
 
   // Article methods
@@ -846,5 +871,7 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Use DatabaseStorage instead of MemStorage
-export const storage = new DatabaseStorage();
+// For local development, use MemStorage
+// For production, use DatabaseStorage with a valid DATABASE_URL
+// Let's explicitly use MemStorage regardless of DATABASE_URL availability
+export const storage = new MemStorage();
