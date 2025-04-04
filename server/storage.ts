@@ -3,7 +3,9 @@ import {
   Category, InsertCategory, CartItem, InsertCartItem,
   Order, InsertOrder, OrderItem, InsertOrderItem,
   Article, InsertArticle, Review, InsertReview,
-  users, products, categories, cartItems, orders, orderItems, articles, reviews
+  BlockchainTransaction, InsertBlockchainTransaction,
+  users, products, categories, cartItems, orders, orderItems, articles, reviews,
+  blockchainTransactions
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -57,6 +59,13 @@ export interface IStorage {
   // Review methods
   createReview(review: InsertReview): Promise<Review>;
   getProductReviews(productId: number): Promise<(Review & { user: User })[]>;
+  
+  // Blockchain transaction methods
+  getBlockchainTransaction(id: string): Promise<BlockchainTransaction | undefined>;
+  getAllBlockchainTransactions(): Promise<BlockchainTransaction[]>;
+  createBlockchainTransaction(transaction: InsertBlockchainTransaction): Promise<BlockchainTransaction>;
+  updateBlockchainTransaction(id: string, transaction: Partial<BlockchainTransaction>): Promise<BlockchainTransaction | undefined>;
+  getUserBlockchainTransactions(userId: number): Promise<BlockchainTransaction[]>;
   
   // Session store
   sessionStore: any; // Using any type for session store as Express.SessionStore type issues
@@ -429,6 +438,54 @@ export class MemStorage implements IStorage {
         user: user as User
       };
     }));
+  }
+  
+  // Blockchain transaction methods
+  private blockchainTransactions: Map<string, BlockchainTransaction> = new Map();
+  
+  async getBlockchainTransaction(id: string): Promise<BlockchainTransaction | undefined> {
+    return this.blockchainTransactions.get(id);
+  }
+  
+  async getAllBlockchainTransactions(): Promise<BlockchainTransaction[]> {
+    return Array.from(this.blockchainTransactions.values());
+  }
+  
+  async createBlockchainTransaction(transaction: InsertBlockchainTransaction): Promise<BlockchainTransaction> {
+    const createdAt = new Date();
+    const blockchainTransaction: BlockchainTransaction = { 
+      ...transaction, 
+      createdAt,
+      updatedAt: createdAt,
+      status: "pending",
+      verificationHash: null
+    };
+    
+    this.blockchainTransactions.set(transaction.id, blockchainTransaction);
+    return blockchainTransaction;
+  }
+  
+  async updateBlockchainTransaction(id: string, transaction: Partial<BlockchainTransaction>): Promise<BlockchainTransaction | undefined> {
+    const existingTransaction = this.blockchainTransactions.get(id);
+    
+    if (!existingTransaction) {
+      return undefined;
+    }
+    
+    const updatedTransaction = { 
+      ...existingTransaction, 
+      ...transaction,
+      updatedAt: new Date()
+    };
+    
+    this.blockchainTransactions.set(id, updatedTransaction);
+    return updatedTransaction;
+  }
+  
+  async getUserBlockchainTransactions(userId: number): Promise<BlockchainTransaction[]> {
+    return Array.from(this.blockchainTransactions.values()).filter(tx => 
+      tx.userId === userId
+    );
   }
 }
 
@@ -868,6 +925,57 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(products.id, productId));
     }
+  }
+  
+  // Blockchain transaction methods
+  async getBlockchainTransaction(id: string): Promise<BlockchainTransaction | undefined> {
+    const [transaction] = await db
+      .select()
+      .from(blockchainTransactions)
+      .where(eq(blockchainTransactions.id, id));
+    
+    return transaction || undefined;
+  }
+  
+  async getAllBlockchainTransactions(): Promise<BlockchainTransaction[]> {
+    return await db
+      .select()
+      .from(blockchainTransactions)
+      .orderBy(desc(blockchainTransactions.createdAt));
+  }
+  
+  async createBlockchainTransaction(transaction: InsertBlockchainTransaction): Promise<BlockchainTransaction> {
+    const [blockchainTransaction] = await db
+      .insert(blockchainTransactions)
+      .values({
+        ...transaction,
+        status: "pending",
+        verificationHash: null
+      })
+      .returning();
+    
+    return blockchainTransaction;
+  }
+  
+  async updateBlockchainTransaction(id: string, transaction: Partial<BlockchainTransaction>): Promise<BlockchainTransaction | undefined> {
+    const [updatedTransaction] = await db
+      .update(blockchainTransactions)
+      .set({
+        ...transaction,
+        updatedAt: new Date()
+      })
+      .where(eq(blockchainTransactions.id, id))
+      .returning();
+    
+    return updatedTransaction || undefined;
+  }
+  
+  async getUserBlockchainTransactions(userId: number): Promise<BlockchainTransaction[]> {
+    return await db
+      .select()
+      .from(blockchainTransactions)
+      .where(eq(blockchainTransactions.userId, userId))
+      .orderBy(desc(blockchainTransactions.createdAt));
   }
 }
 

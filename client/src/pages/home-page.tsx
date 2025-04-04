@@ -6,6 +6,7 @@ import CategoryCard from "@/components/CategoryCard";
 import ProductCard from "@/components/ProductCard";
 import ExpertAdviceCard from "@/components/ExpertAdviceCard";
 import BlockchainBanner from "@/components/BlockchainBanner";
+import BlockchainTransactionsList from "@/components/BlockchainTransactionsList";
 import PartnershipSection from "@/components/PartnershipSection";
 import BottomNavigation from "@/components/BottomNavigation";
 import { Loader2 } from "lucide-react";
@@ -114,6 +115,11 @@ export default function HomePage() {
 
           {/* Blockchain Security */}
           <BlockchainBanner />
+          
+          {/* Blockchain Transactions */}
+          <section className="mb-8 bg-gray-50 p-6 rounded-lg">
+            <BlockchainTransactionsList />
+          </section>
 
           {/* Government Partnerships */}
           <PartnershipSection />

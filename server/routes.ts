@@ -3,7 +3,14 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { z } from "zod";
-import { insertCartItemSchema, insertProductSchema, insertCategorySchema, insertReviewSchema } from "@shared/schema";
+import { 
+  insertCartItemSchema, 
+  insertProductSchema, 
+  insertCategorySchema, 
+  insertReviewSchema,
+  insertBlockchainTransactionSchema 
+} from "@shared/schema";
+import { blockchainService } from "./blockchain";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add healthcheck route for Replit
@@ -396,6 +403,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Failed to delete product" });
+    }
+  });
+
+  // BLOCKCHAIN ROUTES
+  // Check if blockchain service is active
+  app.get("/api/blockchain/status", async (req, res) => {
+    try {
+      const isActive = blockchainService.isActive();
+      const networkId = blockchainService.getNetworkId();
+      
+      res.json({
+        active: isActive,
+        networkId,
+        mode: isActive ? "connected" : "simulation"
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check blockchain status" });
+    }
+  });
+
+  // Get all blockchain transactions
+  app.get("/api/blockchain/transactions", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const transactions = await blockchainService.getAllTransactions();
+      res.json(transactions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch blockchain transactions" });
+    }
+  });
+
+  // Get blockchain transaction by ID
+  app.get("/api/blockchain/transactions/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const txId = req.params.id;
+      const transaction = await blockchainService.getTransaction(txId);
+      
+      if (!transaction) {
+        return res.status(404).json({ message: "Transaction not found" });
+      }
+      
+      res.json(transaction);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch blockchain transaction" });
+    }
+  });
+
+  // Create a new blockchain transaction
+  app.post("/api/blockchain/transactions", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { fromAddress, toAddress, amount, productId, orderId } = req.body;
+      
+      if (!fromAddress || !toAddress || !amount) {
+        return res.status(400).json({ message: "From address, to address, and amount are required" });
+      }
+      
+      if (typeof amount !== 'number' || amount <= 0) {
+        return res.status(400).json({ message: "Amount must be a positive number" });
+      }
+      
+      const userId = req.user?.id;
+      
+      const transaction = await blockchainService.createTransaction(
+        fromAddress,
+        toAddress,
+        amount,
+        productId,
+        orderId,
+        userId
+      );
+      
+      res.status(201).json(transaction);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create blockchain transaction" });
+    }
+  });
+
+  // Confirm a blockchain transaction (delivery confirmation)
+  app.post("/api/blockchain/transactions/:id/confirm", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const txId = req.params.id;
+      const success = await blockchainService.confirmDelivery(txId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Transaction not found or confirmation failed" });
+      }
+      
+      res.json({ message: "Transaction confirmed successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to confirm blockchain transaction" });
+    }
+  });
+  
+  // Get current user's blockchain transactions
+  app.get("/api/blockchain/user/transactions", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const userId = req.user!.id;
+      const transactions = await storage.getUserBlockchainTransactions(userId);
+      
+      res.json(transactions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch user blockchain transactions" });
+    }
+  });
+
+  // Verify a blockchain transaction
+  app.get("/api/blockchain/transactions/:id/verify", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const txId = req.params.id;
+      const transaction = await blockchainService.verifyTransaction(txId);
+      
+      if (!transaction) {
+        return res.status(404).json({ message: "Transaction not found or verification failed" });
+      }
+      
+      res.json(transaction);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to verify blockchain transaction" });
     }
   });
 

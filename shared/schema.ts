@@ -103,6 +103,25 @@ export const reviews = pgTable("reviews", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Blockchain transactions table
+export const blockchainTransactions = pgTable("blockchain_transactions", {
+  id: text("id").primaryKey(), // Transaction ID (UUID)
+  userId: integer("user_id"), // Associated user ID
+  fromAddress: text("from_address").notNull(), // Sender blockchain address
+  toAddress: text("to_address").notNull(), // Recipient blockchain address
+  amount: doublePrecision("amount").notNull(), // Transaction amount
+  orderId: integer("order_id"), // Associated order ID
+  productId: integer("product_id"), // Associated product ID
+  txHash: text("tx_hash"), // Blockchain transaction hash
+  blockNumber: integer("block_number"), // Block number where transaction was confirmed
+  status: text("status").notNull().default("pending"), // pending, confirmed, failed
+  networkId: text("network_id").notNull(), // Blockchain network ID
+  createdAt: timestamp("created_at").defaultNow(), // Transaction creation time
+  updatedAt: timestamp("updated_at").defaultNow(), // Last update time
+  verificationHash: text("verification_hash"), // Hash used for verification
+  verificationUrl: text("verification_url"), // URL to verify transaction on blockchain explorer
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true });
@@ -112,6 +131,15 @@ export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, cre
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 export const insertArticleSchema = createInsertSchema(articles).omit({ id: true, createdAt: true });
 export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
+export const insertBlockchainTransactionSchema = createInsertSchema(blockchainTransactions).omit({ 
+  createdAt: true,
+  updatedAt: true,
+  txHash: true,
+  blockNumber: true,
+  status: true,
+  verificationHash: true,
+  verificationUrl: true
+});
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -138,6 +166,9 @@ export type InsertArticle = z.infer<typeof insertArticleSchema>;
 export type Review = typeof reviews.$inferSelect;
 export type InsertReview = z.infer<typeof insertReviewSchema>;
 
+export type BlockchainTransaction = typeof blockchainTransactions.$inferSelect;
+export type InsertBlockchainTransaction = z.infer<typeof insertBlockchainTransactionSchema>;
+
 // Authentication-specific schema
 export const loginSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -153,6 +184,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   cartItems: many(cartItems),
   reviews: many(reviews),
   articles: many(articles, { relationName: "expert_articles" }),
+  blockchainTransactions: many(blockchainTransactions)
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -219,6 +251,21 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
   }),
   product: one(products, {
     fields: [reviews.productId],
+    references: [products.id]
+  })
+}));
+
+export const blockchainTransactionsRelations = relations(blockchainTransactions, ({ one }) => ({
+  user: one(users, {
+    fields: [blockchainTransactions.userId],
+    references: [users.id]
+  }),
+  order: one(orders, {
+    fields: [blockchainTransactions.orderId],
+    references: [orders.id]
+  }),
+  product: one(products, {
+    fields: [blockchainTransactions.productId],
     references: [products.id]
   })
 }));
