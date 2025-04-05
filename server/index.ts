@@ -66,12 +66,10 @@ app.use((req, res, next) => {
   // It is the only port that is not firewalled.
   const port = 5000;
   console.log("Starting AgriConnect server...");
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    console.log(`=== AgriConnect server is running on http://0.0.0.0:${port} ===`);
+  
+  // Simplified listening to prevent ENOTSUP error
+  server.listen(port, () => {
+    console.log(`=== AgriConnect server is running on port ${port} ===`);
     log(`serving on port ${port}`);
   });
 })();
