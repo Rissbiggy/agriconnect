@@ -12,6 +12,8 @@ import createMemoryStore from "memorystore";
 import connectPg from "connect-pg-simple";
 import { db, pool } from "./db";
 import { eq, and, like, desc, sql } from "drizzle-orm";
+import { Pool } from "@neondatabase/serverless";
+import { NeonDatabase } from "drizzle-orm/neon-serverless";
 
 const MemoryStore = createMemoryStore(session);
 const PostgresSessionStore = connectPg(session);
@@ -979,7 +981,29 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// For local development, use MemStorage
-// For production, use DatabaseStorage with a valid DATABASE_URL
-// Let's explicitly use MemStorage regardless of DATABASE_URL availability
-export const storage = new MemStorage();
+/**
+ * Initialize the appropriate storage implementation based on database availability
+ * This provides a reliable fallback to in-memory storage when database is unavailable
+ */
+const initializeStorage = (): IStorage => {
+  // Simple check for database availability
+  if (pool !== null && db !== null) {
+    try {
+      // Additional validation that pool is working
+      if (typeof pool === 'object' && typeof pool.query === 'function') {
+        console.log("Using PostgreSQL database for storage");
+        return new DatabaseStorage();
+      }
+    } catch (err) {
+      console.error("Database validation failed, using in-memory storage instead:", 
+                  err instanceof Error ? err.message : String(err));
+    }
+  }
+  
+  // Default to in-memory storage if any check fails
+  console.log("Using in-memory storage (database connection not available)");
+  return new MemStorage();
+};
+
+// Export the appropriate storage implementation
+export const storage = initializeStorage();
